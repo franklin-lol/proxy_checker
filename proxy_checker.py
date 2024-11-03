@@ -1,86 +1,88 @@
 import requests
 import concurrent.futures
 
-# Функция для проверки одного прокси
+# Example proxy list URL: https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt
+
+# Function to check a single proxy
 def check_proxy(proxy, timeout):
     try:
         proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"}
         response = requests.get("http://httpbin.org/ip", proxies=proxies, timeout=timeout)
         if response.status_code == 200:
-            print(f"[Рабочий] {proxy}")
+            print(f"[Working] {proxy}")
             return proxy
     except:
-        print(f"[Не работает] {proxy}")
+        print(f"[Not working] {proxy}")
         return None
 
-# Основная функция
+# Main function
 def main():
-    # Запрос ссылки на список прокси
-    proxy_list_url = input("У вас есть ссылка для прокси? Вставьте её: ")
+    # Prompt for the proxy list URL
+    proxy_list_url = input("Do you have a proxy list URL? Please insert it(Example proxy list URL: https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt): ")  # Example: https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt
     
-    # Загрузка списка прокси
+    # Load the proxy list
     try:
         response = requests.get(proxy_list_url)
         response.raise_for_status()
         proxies = response.text.splitlines()
         total_proxies = len(proxies)
-        print(f"Загружено {total_proxies} прокси для проверки.")
+        print(f"Loaded {total_proxies} proxies for checking.")
     except Exception as e:
-        print("Не удалось загрузить список прокси:", e)
+        print("Failed to load the proxy list:", e)
         return
 
-    # Запрос количества прокси для проверки
+    # Prompt for the number of proxies to check
     while True:
         try:
-            check_count = int(input(f"Сколько прокси проверить (0 - все, или от 1 - {total_proxies})? "))
+            check_count = int(input(f"How many proxies to check (0 - all, insert from 1 - {total_proxies})? "))
             if 0 <= check_count <= total_proxies:
                 break
             else:
-                print(f"Пожалуйста, введите число от 0 до {total_proxies}.")
+                print(f"Please enter a number between 0 and {total_proxies}.")
         except ValueError:
-            print("Неверный ввод. Введите число от 0 до {total_proxies}.")
+            print("Invalid input. Please enter a number between 0 and {total_proxies}.")
 
-    # Запрос времени ожидания
+    # Prompt for timeout
     while True:
         try:
-            timeout = int(input("Введите время ожидания от 1 до 5 секунд (например, 1 — быстро, 5 — медленно): "))
+            timeout = int(input("Enter timeout in seconds (1 for fast, 5 for slow): "))
             if 1 <= timeout <= 5:
                 break
             else:
-                print("Пожалуйста, введите число от 1 до 5.")
+                print("Please enter a number between 1 and 5.")
         except ValueError:
-            print("Неверный ввод. Введите число от 1 до 5.")
+            print("Invalid input. Please enter a number between 1 and 5.")
     
-    # Определяем прокси для проверки
+    # Determine which proxies to check
     if check_count == 0:
         proxies_to_check = proxies
     else:
         proxies_to_check = proxies[:check_count]
 
-    # Логирование действий
-    print("Начинаю проверку прокси...")
+    # Logging actions
+    print("Starting proxy check...")
     
-    # Проверка прокси в многопоточном режиме
+    # Check proxies in multithreading mode
     working_proxies = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         results = list(executor.map(lambda proxy: check_proxy(proxy, timeout), proxies_to_check))
     
-    # Фильтрация рабочих прокси
+    # Filter working proxies
     working_proxies = [proxy for proxy in results if proxy]
 
-    # Проверка, существует ли файл и создание его, если нет
+    # Attempt to write working proxies to a file
     try:
         with open("working_proxies.txt", "w") as file:
             for proxy in working_proxies:
                 file.write(proxy + "\n")
-        print("Рабочие прокси записаны в файл 'working_proxies.txt'.")
+        print("Working proxies have been written to 'working_proxies.txt'.")
     except Exception as e:
-        print("Не удалось записать в файл:", e)
+        print("Failed to write to file:", e)
     
-    # Итоговый отчет
-    print(f"Проверка завершена.")
-    print(f"Рабочих прокси: {len(working_proxies)}")
-    print(f"Нерабочих прокси: {len(proxies_to_check) - len(working_proxies)}")
+    # Final report
+    print(f"Check completed.")
+    print(f"Working proxies: {len(working_proxies)}")
+    print(f"Not working proxies: {len(proxies_to_check) - len(working_proxies)}")
     
 if __name__ == "__main__":
     main()
