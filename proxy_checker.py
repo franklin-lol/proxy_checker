@@ -1,6 +1,7 @@
 import requests
 import concurrent.futures
 import sys
+import msvcrt  # Import the msvcrt module for Windows
 
 # Example proxy list URL: https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt
 
@@ -38,7 +39,7 @@ def main():
     selected_proxy_type = proxy_types[proxy_type_choice]
 
     # Prompt for the proxy list URL
-    proxy_list_url = input("Do you have a proxy list URL? (Example proxy list URL: https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt) Please insert it: ")  # Example: https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt
+    proxy_list_url = input("Do you have a proxy list URL? \n(Example proxy list URL: https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt) \nPlease insert it: ")  # Example: https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt
     
     # Load the proxy list
     try:
@@ -139,7 +140,8 @@ def main():
     print(f"Total proxies checked: {len(proxies_to_check)}")
     
     # Wait for user input before exiting
-    input("\nPress any key to exit...")
+    print("\nPress any key to exit...")
+    msvcrt.getch()  # Wait for any key press
 
 if __name__ == "__main__":
     main()
