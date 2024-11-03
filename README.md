@@ -14,4 +14,5 @@ Usage
 Clone the repository.
 Install the required dependencies.
 Run the script and follow the prompts to input the proxy URL, number of proxies to check, and timeout duration.
-![image](https://github.com/user-attachments/assets/842b4e75-bdb7-44e0-8e00-48a8e22eaa0f)
+![image](https://github.com/user-attachments/assets/2fcb889f-78f9-4050-9962-a6f9c89478a5)
+
