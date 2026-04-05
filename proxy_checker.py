@@ -397,6 +397,10 @@ async def async_main():
 
 
 def main():
+    # WindowsSelectorEventLoopPolicy avoids the noisy [WinError 10054]
+    # ConnectionResetError that ProactorEventLoop emits on Windows.
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     try:
         asyncio.run(async_main())
     except KeyboardInterrupt:
