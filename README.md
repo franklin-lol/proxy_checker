@@ -29,17 +29,17 @@ HTTP · SOCKS4 · SOCKS5 · anonymity detection · custom targets · JSON/TXT ex
 
 `proxy-checker` validates large proxy lists at high speed using fully async I/O. It measures response time, detects anonymity level, and lets you check proxies against any target — not just "is it alive?" but "does it reach Instagram / Telegram / Google?"
 
-```
-◉ Working: 42   ✕ Dead: 958   Total: 1000   Rate: 4%
+---
 
-  Proxy                    Type     Ping      Anonymity
-  ──────────────────────────────────────────────────────
-  45.77.10.21:8080         http      312 ms   elite
-  103.149.130.38:80        http      489 ms   anonymous
-  82.165.184.53:3128       http      921 ms   transparent
+## ☁️ Run in Cloud (GitHub Actions)
 
-◉ 42 proxies → ./results/working_http_20240318_142300.txt
-```
+You can run this checker directly on GitHub's servers without installing anything on your PC:
+
+1. Go to the **[Actions](/../../actions/workflows/run_checker.yml)** tab.
+2. Select **"Proxy Checker Cloud Run"** on the left.
+3. Click **"Run workflow"** on the right.
+4. Enter your proxy list URL (or use presets `1`, `2`, `3`) and adjust settings.
+5. Once finished, download the results from the **Artifacts** section at the bottom of the run page.
 
 ---
 

@@ -1,0 +1,60 @@
+name: Proxy Checker Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      proxy_source:
+        description: 'URL to proxy list (or use presets: 1=HTTP, 2=SOCKS4, 3=SOCKS5)'
+        required: true
+        default: '1'
+      proxy_type:
+        description: 'Protocol (http, socks4, socks5, all)'
+        required: true
+        default: 'http'
+      limit:
+        description: 'Max proxies to check (0 for all)'
+        required: false
+        default: '100'
+      concurrency:
+        description: 'Parallel checks'
+        required: false
+        default: '50'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Proxy Checker
+        run: |
+          # Resolve source if it's a preset number
+          SOURCE="${{ github.event.inputs.proxy_source }}"
+          if [ "$SOURCE" == "1" ]; then SOURCE="https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt"; fi
+          if [ "$SOURCE" == "2" ]; then SOURCE="https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt"; fi
+          if [ "$SOURCE" == "3" ]; then SOURCE="https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt"; fi
+          
+          python proxy_checker.py \
+            --url "$SOURCE" \
+            --type "${{ github.event.inputs.proxy_type }}" \
+            --limit ${{ github.event.inputs.limit }} \
+            --concurrency ${{ github.event.inputs.concurrency }} \
+            --export txt \
+            --out ./results
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: working-proxies
+          path: ./results/*.txt
