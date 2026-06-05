@@ -3,22 +3,36 @@ name: Proxy Checker Cloud Run
 on:
   workflow_dispatch:
     inputs:
-      proxy_source:
-        description: 'URL to proxy list (or use presets: 1=HTTP, 2=SOCKS4, 3=SOCKS5)'
+      source_type:
+        description: 'Where to get proxies?'
         required: true
-        default: '1'
+        type: choice
+        options:
+          - 'Preset: TheSpeedX HTTP'
+          - 'Preset: TheSpeedX SOCKS4'
+          - 'Preset: TheSpeedX SOCKS5'
+          - 'Custom URL'
+      custom_url:
+        description: 'Custom URL (if "Custom URL" selected above)'
+        required: false
+        default: ''
       proxy_type:
-        description: 'Protocol (http, socks4, socks5, all)'
+        description: 'Protocol to test'
         required: true
-        default: 'http'
+        type: choice
+        options:
+          - 'http'
+          - 'socks4'
+          - 'socks5'
+          - 'all'
       limit:
-        description: 'Max proxies to check (0 for all)'
+        description: 'Max proxies (0 = all)'
+        required: false
+        default: '500'
+      concurrency:
+        description: 'Parallel checks (suggested: 50-100)'
         required: false
         default: '100'
-      concurrency:
-        description: 'Parallel checks'
-        required: false
-        default: '50'
 
 jobs:
   check:
@@ -39,11 +53,16 @@ jobs:
 
       - name: Run Proxy Checker
         run: |
-          # Resolve source if it's a preset number
-          SOURCE="${{ github.event.inputs.proxy_source }}"
-          if [ "$SOURCE" == "1" ]; then SOURCE="https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt"; fi
-          if [ "$SOURCE" == "2" ]; then SOURCE="https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt"; fi
-          if [ "$SOURCE" == "3" ]; then SOURCE="https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt"; fi
+          # Resolve source
+          if [ "${{ github.event.inputs.source_type }}" == "Preset: TheSpeedX HTTP" ]; then SOURCE="https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt";
+          elif [ "${{ github.event.inputs.source_type }}" == "Preset: TheSpeedX SOCKS4" ]; then SOURCE="https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt";
+          elif [ "${{ github.event.inputs.source_type }}" == "Preset: TheSpeedX SOCKS5" ]; then SOURCE="https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt";
+          else SOURCE="${{ github.event.inputs.custom_url }}"; fi
+          
+          if [ -z "$SOURCE" ]; then echo "Error: No source provided"; exit 1; fi
+
+          # Force rich to use colors in GitHub Actions
+          export FORCE_COLOR=1
           
           python proxy_checker.py \
             --url "$SOURCE" \

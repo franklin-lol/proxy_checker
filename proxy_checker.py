@@ -125,17 +125,25 @@ async def check_proxy(proxy: str, ptype: str, timeout: int, real_ip: str, check_
 async def run_checks(proxies, ptype, timeout, concurrency, real_ip, check_url) -> list:
     results = []
     sem = asyncio.Semaphore(concurrency)
+    is_ci = "GITHUB_ACTIONS" in iter(sys.modules.get("os", {}).environ) or "GITHUB_ACTIONS" in sys.modules.get("os", {}).environ if "os" in sys.modules else False
+    # Simple check for CI env
+    import os
+    is_ci = os.getenv("GITHUB_ACTIONS") == "true"
 
     if ptype == "all":
         tasks_input = [(p, t) for p in proxies for t in ("http", "socks4", "socks5")]
     else:
         tasks_input = [(p, ptype) for p in proxies]
 
+    total_tasks = len(tasks_input)
+
     async def bounded(proxy, pt, progress, tid):
         async with sem:
             r = await check_proxy(proxy, pt, timeout, real_ip, check_url)
             results.append(r)
             progress.advance(tid)
+            if is_ci and len(results) % 100 == 0:
+                console.print(f"[dim][{datetime.now().strftime('%H:%M:%S')}] Checked {len(results)}/{total_tasks}...[/]")
 
     with Progress(
         SpinnerColumn(style="green"),
