@@ -82,7 +82,17 @@ def detect_anonymity(headers: dict, origin: str, real_ip: str) -> str:
     return "elite"
 
 # ── Single proxy check ────────────────────────────────────────────────────────
-async def check_proxy(proxy: str, ptype: str, timeout: int, real_ip: str, check_url: str) -> dict:
+async def check_proxy(proxy_raw: str, ptype_default: str, timeout: int, real_ip: str, check_url: str) -> dict:
+    # Handle proxies with scheme (socks5://1.2.3.4:8080)
+    if "://" in proxy_raw:
+        try:
+            ptype, proxy = proxy_raw.split("://", 1)
+            ptype = ptype.lower()
+        except ValueError:
+            ptype, proxy = ptype_default, proxy_raw
+    else:
+        ptype, proxy = ptype_default, proxy_raw
+
     is_httpbin = "httpbin.org" in check_url
     t0 = time.monotonic()
 

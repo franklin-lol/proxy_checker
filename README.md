@@ -58,6 +58,7 @@ You can run this checker directly on GitHub's servers without installing anythin
 | **Interface** | `print()` | `rich` — progress bar, tables, panels |
 | **CLI mode** | interactive only | full `--flag` non-interactive mode |
 | **Platform** | Windows only | Linux · macOS · Windows |
+| **Smart Parsing** | — | Auto-detects `socks5://` or `http://` from list |
 
 ---
 
