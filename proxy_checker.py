@@ -8,6 +8,7 @@ import time
 import sys
 import json
 import argparse
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -27,6 +28,12 @@ except ImportError:
 console = Console()
 
 HTTPBIN_URL = "http://httpbin.org/get"
+
+# Standard browser headers to avoid instant blocking
+DEFAULT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+}
 
 # Fallback IP detection — tried in order until one succeeds
 IP_SERVICES = [
@@ -52,7 +59,7 @@ def _fail(proxy: str, ptype: str, error: str) -> dict:
 
 def _make_connector(ptype: str, proxy: str):
     """Return (connector, extra_request_kwargs) for the given proxy type."""
-    if ptype == "http":
+    if ptype == "http" or ptype == "https":
         return aiohttp.TCPConnector(ssl=False), {"proxy": f"http://{proxy}"}
     connector = aiohttp_socks.ProxyConnector.from_url(
         f"{ptype}://{proxy}", ssl=False, rdns=True
@@ -63,7 +70,6 @@ def _make_connector(ptype: str, proxy: str):
 def detect_anonymity(headers: dict, origin: str, real_ip: str) -> str:
     """
     Parse a single httpbin /get response for anonymity level.
-    `origin` is the IP httpbin saw. `headers` are the forwarded request headers.
     """
     PROXY_HEADERS = {
         "x-forwarded-for", "x-real-ip", "via", "forwarded-for",
@@ -83,16 +89,16 @@ def detect_anonymity(headers: dict, origin: str, real_ip: str) -> str:
 
 # ── Single proxy check ────────────────────────────────────────────────────────
 async def check_proxy(proxy_raw: str, ptype_default: str, timeout: int, real_ip: str, check_url: str) -> dict:
-    # Handle proxies with scheme (socks5://1.2.3.4:8080)
-    if "://" in proxy_raw:
-        try:
-            ptype, proxy = proxy_raw.split("://", 1)
-            ptype = ptype.lower()
-        except ValueError:
-            ptype, proxy = ptype_default, proxy_raw
-    else:
-        ptype, proxy = ptype_default, proxy_raw
-
+    # Use Regex to extract protocol and address correctly
+    match = re.search(r'(?:(?P<proto>https?|socks[45])://)?(?P<addr>\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?)', proxy_raw.lower())
+    
+    if not match:
+        return _fail(proxy_raw[:30], ptype_default, "invalid format")
+        
+    ptype = match.group("proto") or ptype_default
+    proxy = match.group("addr")
+    
+    if ptype == "https": ptype = "http"
     is_httpbin = "httpbin.org" in check_url
     t0 = time.monotonic()
 
@@ -101,9 +107,9 @@ async def check_proxy(proxy_raw: str, ptype_default: str, timeout: int, real_ip:
         async with aiohttp.ClientSession(
             connector=connector,
             timeout=aiohttp.ClientTimeout(total=timeout),
+            headers=DEFAULT_HEADERS
         ) as s:
             async with s.get(check_url, **req_kwargs) as r:
-                # For custom targets any response <500 means reachable
                 ok_threshold = 300 if is_httpbin else 500
                 if r.status >= ok_threshold:
                     return _fail(proxy, ptype, f"status {r.status}")
@@ -126,8 +132,6 @@ async def check_proxy(proxy_raw: str, ptype_default: str, timeout: int, real_ip:
 
     except asyncio.TimeoutError:
         return _fail(proxy, ptype, "timeout")
-    except ConnectionResetError:
-        return _fail(proxy, ptype, "connection reset")
     except Exception as e:
         return _fail(proxy, ptype, str(e)[:60])
 
@@ -135,21 +139,27 @@ async def check_proxy(proxy_raw: str, ptype_default: str, timeout: int, real_ip:
 async def run_checks(proxies, ptype, timeout, concurrency, real_ip, check_url) -> list:
     results = []
     sem = asyncio.Semaphore(concurrency)
-    is_ci = "GITHUB_ACTIONS" in iter(sys.modules.get("os", {}).environ) or "GITHUB_ACTIONS" in sys.modules.get("os", {}).environ if "os" in sys.modules else False
-    # Simple check for CI env
+    
     import os
     is_ci = os.getenv("GITHUB_ACTIONS") == "true"
 
-    if ptype == "all":
-        tasks_input = [(p, t) for p in proxies for t in ("http", "socks4", "socks5")]
-    else:
-        tasks_input = [(p, ptype) for p in proxies]
+    # Build task list: if proxy has scheme, only check it once
+    tasks_input = []
+    for p in proxies:
+        if "://" in p.lower():
+            tasks_input.append((p, "auto"))
+        else:
+            if ptype == "all":
+                for t in ("http", "socks4", "socks5"):
+                    tasks_input.append((p, t))
+            else:
+                tasks_input.append((p, ptype))
 
     total_tasks = len(tasks_input)
 
-    async def bounded(proxy, pt, progress, tid):
+    async def bounded(p_raw, pt_def, progress, tid):
         async with sem:
-            r = await check_proxy(proxy, pt, timeout, real_ip, check_url)
+            r = await check_proxy(p_raw, pt_def, timeout, real_ip, check_url)
             results.append(r)
             progress.advance(tid)
             if is_ci and len(results) % 100 == 0:
@@ -264,8 +274,14 @@ def export_results(results, ptype, fmt, out_dir: Path):
 # ── Proxy list loaders ────────────────────────────────────────────────────────
 def load_from_url(url: str) -> list[str]:
     import urllib.request
-    with console.status("[dim]Downloading...[/]"):
-        with urllib.request.urlopen(url, timeout=15) as r:
+    
+    # Auto-convert GitHub blob links to raw
+    if "github.com" in url and "/blob/" in url:
+        url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+
+    with console.status(f"[dim]Downloading from {url[:30]}...[/]"):
+        req = urllib.request.Request(url, headers=DEFAULT_HEADERS)
+        with urllib.request.urlopen(req, timeout=15) as r:
             lines = r.read().decode(errors="ignore").splitlines()
     return [ln.strip() for ln in lines if ln.strip() and not ln.startswith("#")]
 
